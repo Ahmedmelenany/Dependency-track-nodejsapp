@@ -140,6 +140,15 @@ services:
       - "8080:8080"
     restart: unless-stopped
 
+  trivy:
+    image: aquasec/trivy:latest
+    command: ["server", "--listen", "0.0.0.0:8082", "--token", "your-trivy-token"]
+    ports:
+      - "8082:8082"
+    volumes:
+      - "trivy-data:/root/.cache/trivy"
+    restart: unless-stopped
+
   postgres:
     image: postgres:17-alpine
     environment:
@@ -158,3 +167,4 @@ services:
 volumes:
   dtrack-data: {}
   postgres-data: {}
+  trivy-data: {}
