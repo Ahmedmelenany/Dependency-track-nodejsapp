@@ -2,6 +2,12 @@
 
 A deliberately vulnerable Node.js application used to demo [OWASP Dependency-Track](https://dependencytrack.org/)  an open-source platform for tracking and managing vulnerabilities in third-party dependencies.
 
+## Prerequisites
+
+- Node.js 18+
+- Access to a running Dependency-Track instance
+
+
 ## What this app does
 
 A simple Express REST API with three endpoints:
@@ -33,5 +39,54 @@ The app intentionally uses outdated package versions with known CVEs to demonstr
 | `node-fetch` | 2.6.0 | CVE-2022-0235 | High | Exposure of sensitive headers on redirect |
 | `serialize-javascript` | 2.1.1 | CVE-2020-7660 | High | XSS via regex serialization |
 | `express` | 4.18.2 | Multiple | Medium | Transitive dependency vulnerabilities |
+
+## Generating and uploading the SBOM
+
+
+### Step 1: Install cdxgen
+
+[cdxgen](https://github.com/CycloneDX/cdxgen) is an open-source tool that scans your project and generates a CycloneDX SBOM.
+
+```bash
+npm install -g @cyclonedx/cdxgen
+```
+
+Or use it without installing via npx:
+
+```bash
+npx @cyclonedx/cdxgen --help
+```
+
+### Step 2: Generate the SBOM
+
+Run this from the root of the project after `npm install`:
+
+```bash
+npx @cyclonedx/cdxgen -o bom.json --spec-version 1.4 .
+```
+
+This produces a `bom.json` file listing all dependencies and their metadata (name, version, PURL, hashes, licenses).
+
+### Step 3: Upload to Dependency-Track
+
+Get an   API key from: **Dependency-Track UI → Administration → Access Management → Teams → Automation → API Key**
+
+Then upload:
+
+```bash
+curl -X POST "http://localhost:8081/api/v1/bom" \
+  -H "X-Api-Key: API_KEY" \
+  -F "autoCreate=false" \
+  -F "projectName=my-app" \
+  -F "projectVersion=1.0.0" \
+  -F "bom=@bom.json"
+```
+
+A successful response returns a token:
+```json
+{"token":"xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"}
+```
+
+Dependency-Track will then analyze all components against its vulnerability databases (NVD, OSV, Trivy) and populate the project dashboard with findings.
 
 ---
