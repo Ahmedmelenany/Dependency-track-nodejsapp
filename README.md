@@ -5,8 +5,29 @@ A deliberately vulnerable Node.js application used to demo [OWASP Dependency-Tra
 ## Prerequisites
 
 - Node.js 18+
+- Docker and Docker Compose
 - Access to a running Dependency-Track instance
 
+## Running Dependency-Track with Docker Compose
+
+A `docker-compose.yml` is included to spin up the full Dependency-Track stack (API server, frontend, PostgreSQL).
+
+```bash
+docker compose up -d
+```
+
+This starts three containers:
+
+![Running containers](images/image-01.png)
+
+| Service | URL |
+|---|---|
+| Frontend | http://localhost:8080 |
+| API Server | http://localhost:8081 |
+
+Default credentials: `admin` / `admin` (you will be prompted to change on first login).
+
+> On first startup the API server downloads the full NVD vulnerability database which can take 2 - 3 hours. Vulnerability results will appear once the sync completes.
 
 ## What this app does
 
