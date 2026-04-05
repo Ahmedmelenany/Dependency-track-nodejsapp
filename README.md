@@ -29,6 +29,30 @@ Default credentials: `admin` / `admin` (you will be prompted to change on first 
 
 > On first startup the API server downloads the full NVD vulnerability database which can take 2 - 3 hours. Vulnerability results will appear once the sync completes.
 
+### Enable fuzzy matching for vulnerability detection
+
+By default, Dependency-Track's internal analyzer matches components using CPE identifiers. Since npm packages typically don't include CPE data in their SBOMs, we need to enable fuzzy matching so the analyzer can match components by name against the NVD database.
+
+Run this once after the stack is up:
+
+```bash
+docker exec dependencytrack-postgres-1 psql -U dtrack -d dtrack -c "
+UPDATE \"CONFIGPROPERTY\" SET \"PROPERTYVALUE\" = 'true'
+WHERE \"GROUPNAME\" = 'scanner' AND \"PROPERTYNAME\" = 'internal.fuzzy.enabled';
+
+UPDATE \"CONFIGPROPERTY\" SET \"PROPERTYVALUE\" = 'false'
+WHERE \"GROUPNAME\" = 'scanner' AND \"PROPERTYNAME\" = 'internal.fuzzy.exclude.purl';
+"
+```
+
+Then restart the API server to apply the change:
+
+```bash
+docker restart dependencytrack-apiserver-1
+```
+
+After restarting, re-upload the SBOM and vulnerabilities will appear in the dashboard.
+
 ## What this app does
 
 A simple Express REST API with three endpoints:
