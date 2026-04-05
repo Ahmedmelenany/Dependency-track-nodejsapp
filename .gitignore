@@ -1,0 +1,4 @@
+node_modules/
+bom.json
+*.log
+.env
