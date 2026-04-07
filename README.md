@@ -71,6 +71,15 @@ npm start
 # Server runs on http://localhost:3000
 ```
 
+## Running with Docker
+
+```bash
+docker build -t my-app .
+docker run -p 3000:3000 my-app
+```
+
+The app will be available at http://localhost:3000.
+
 ## Vulnerable dependencies
 
 The app intentionally uses outdated package versions with known CVEs to demonstrate Dependency-Track's detection capabilities.
