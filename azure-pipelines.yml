@@ -1,0 +1,30 @@
+trigger:
+  branches:
+    include:
+      - main
+
+pool:
+  vmImage: ubuntu-latest
+
+steps:
+  - task: NodeTool@0
+    displayName: Set up Node.js
+    inputs:
+      versionSpec: '20.x'
+
+  - script: npm install
+    displayName: Install dependencies
+    workingDirectory: src
+
+  - script: npx @cyclonedx/cdxgen -o ../bom.json --spec-version 1.4 .
+    displayName: Generate SBOM
+    workingDirectory: src
+
+  - script: |
+      curl -X POST "$(DT_URL)/api/v1/bom" \
+        -H "X-Api-Key: $(API_KEY)" \
+        -F "autoCreate=false" \
+        -F "projectName=node-app" \
+        -F "projectVersion=1.0.0" \
+        -F "bom=@bom.json"
+    displayName: Upload SBOM to Dependency-Track

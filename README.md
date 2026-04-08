@@ -94,6 +94,10 @@ The app intentionally uses outdated package versions with known CVEs to demonstr
 | `serialize-javascript` | 2.1.1 | CVE-2020-7660 | High | XSS via regex serialization |
 | `express` | 4.18.2 | Multiple | Medium | Transitive dependency vulnerabilities |
 
+## CI/CD Pipelines
+
+Two pipeline files are included to automate SBOM generation and upload on every push to `main`: `.github/workflows/sbom.yml` for GitHub Actions and `azure-pipelines.yml` for Azure DevOps. Both require `DT_URL` and `API_KEY` to be set as secrets/variables in your pipeline settings.
+
 ## Example SBOM
 
 A pre-generated `bom.json` is included in the repo so you can upload it directly to Dependency-Track without running cdxgen yourself.
