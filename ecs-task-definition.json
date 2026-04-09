@@ -1,0 +1,142 @@
+{
+  "family": "dependency-track",
+  "networkMode": "awsvpc",
+  "requiresCompatibilities": ["FARGATE"],
+  "cpu": "1024",
+  "memory": "4096",
+  "executionRoleArn": "<iam-role>",
+  "taskRoleArn": "<iam-role>",
+  "containerDefinitions": [
+    {
+      "name": "apiserver",
+      "image": "<ecr-url>dependency-track/backend/dependencytrack-apiserver:1.0.0",
+      "essential": true,
+      "portMappings": [
+        {
+          "containerPort": 8080,
+          "protocol": "tcp"
+        }
+      ],
+      "environment": [
+        {
+          "name": "ALPINE_DATABASE_MODE",
+          "value": "external"
+        },
+        {
+          "name": "ALPINE_DATABASE_URL",
+          "value": "<rds-url>:5432/postgres?sslmode=verify-full&sslrootcert=/etc/ssl/certs/rds-ca.pem"
+        },
+        {
+          "name": "ALPINE_DATABASE_DRIVER",
+          "value": "org.postgresql.Driver"
+        }
+      ],
+      "secrets": [
+        {
+          "name": "ALPINE_DATABASE_USERNAME",
+          "valueFrom": "<secret-url>"
+        },
+        {
+          "name": "ALPINE_DATABASE_PASSWORD",
+          "valueFrom": "<secret-url>"
+        }
+      ],
+      "memory": 3072,
+      "cpu": 512,
+      "mountPoints": [
+        {
+          "sourceVolume": "dtrack-data",
+          "containerPath": "/data",
+          "readOnly": false
+        }
+      ],
+      "healthCheck": {
+        "command": [
+          "CMD-SHELL",
+          "curl http://127.0.0.1:8080/health || exit 1"
+        ],
+        "interval": 30,
+        "timeout": 3,
+        "retries": 3,
+        "startPeriod": 60
+      },
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/ecs/dependencytrack",
+          "awslogs-region": "<regoin>",
+          "awslogs-stream-prefix": "apiserver"
+        }
+      }
+    },
+    {
+      "name": "frontend",
+      "image": "<ecr-url>dependency-track/frontend/dependencytrack/frontend:1.0.0",
+      "essential": true,
+      "portMappings": [
+        {
+          "containerPort": 8081,
+          "protocol": "tcp"
+        }
+      ],
+      "environment": [
+        {
+          "name": "API_BASE_URL",
+          "value": "<api-domain>"
+        }
+      ],
+      "memory": 512,
+      "cpu": 256,
+      "dependsOn": [
+        {
+          "containerName": "apiserver",
+          "condition": "HEALTHY"
+        }
+      ],
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/ecs/dependencytrack",
+          "awslogs-region": "<regoin>",
+          "awslogs-stream-prefix": "frontend"
+        }
+      }
+    },
+    {
+      "name": "trivy",
+      "image": "aquasec/trivy:0.69.0",
+      "essential": false,
+      "command": ["server", "--listen", "127.0.0.1:8082", "--token", "trivy-token"],
+      "portMappings": [
+        {
+          "containerPort": 8082,
+          "protocol": "tcp"
+        }
+      ],
+      "memory": 512,
+      "cpu": 256,
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/ecs/dependencytrack",
+          "awslogs-region": "<regoin>",
+          "awslogs-stream-prefix": "trivy"
+        }
+      }
+    }
+  ],
+  "volumes": [
+    {
+      "name": "dtrack-data",
+      "efsVolumeConfiguration": {
+        "fileSystemId": "<fs-id>",
+        "rootDirectory": "/data",
+        "transitEncryption": "ENABLED",
+        "authorizationConfig": {
+          "accessPointId": "<accessPointId>",
+          "iam": "ENABLED"
+        }
+      }
+    }
+  ]
+}
