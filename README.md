@@ -94,6 +94,10 @@ The app intentionally uses outdated package versions with known CVEs to demonstr
 | `serialize-javascript` | 2.1.1 | CVE-2020-7660 | High | XSS via regex serialization |
 | `express` | 4.18.2 | Multiple | Medium | Transitive dependency vulnerabilities |
 
+## Deployment
+
+Dependency-Track is deployed on **AWS ECS Fargate** using the included `ecs-task-definition.json`. The task runs three containers (API server, frontend, Trivy) in a single task, with the API server connected to an RDS PostgreSQL database and an EFS volume for persistent data. Credentials are pulled from AWS Secrets Manager.
+
 ## CI/CD Pipelines
 
 Two pipeline files are included to automate SBOM generation and upload on every push to `main`: `.github/workflows/sbom.yml` for GitHub Actions and `azure-pipelines.yml` for Azure DevOps. Both require `DT_URL` and `API_KEY` to be set as secrets/variables in your pipeline settings.
