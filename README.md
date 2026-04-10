@@ -98,6 +98,32 @@ The app intentionally uses outdated package versions with known CVEs to demonstr
 
 Dependency-Track is deployed on **AWS ECS Fargate** using the included `ecs-task-definition.json`. The task runs three containers (API server, frontend, Trivy) in a single task, with the API server connected to an RDS PostgreSQL database and an EFS volume for persistent data. Credentials are pulled from AWS Secrets Manager.
 
+## Infrastructure with Terraform
+
+The `terraform/` directory contains all infrastructure-as-code to deploy Dependency-Track on AWS. It provisions the following resources:
+
+- **VPC**: public/private subnets, NAT Gateway, route tables
+- **ECS Fargate**: cluster, task definition (API server, frontend, Trivy), service
+- **RDS PostgreSQL 17**: in private subnets, encrypted, deletion-protected
+- **EFS**: encrypted persistent storage for Dependency-Track data
+- **ALB**: public-facing load balancer routing traffic to API server and frontend
+- **ECR**: container image repositories with scan-on-push enabled
+- **IAM** least-privilege execution and task roles
+- **Secrets Manager** — stores DB credentials securely
+- **CloudWatch** — log group for all ECS containers
+
+```bash
+cd terraform
+terraform init
+terraform plan \
+  -var="db_username=dtrack" \
+  -var="db_password=yourpass" \
+  -var="apiserver_image=<ecr-url>" \
+  -var="frontend_image=<ecr-url>" \
+  -var="api_domain=http://your-alb-dns"
+terraform apply
+```
+
 ## CI/CD Pipelines
 
 Two pipeline files are included to automate SBOM generation and upload on every push to `main`: `.github/workflows/sbom.yml` for GitHub Actions and `azure-pipelines.yml` for Azure DevOps. Both require `DT_URL` and `API_KEY` to be set as secrets/variables in your pipeline settings.
