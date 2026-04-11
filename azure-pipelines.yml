@@ -6,11 +6,31 @@ trigger:
 pool:
   vmImage: ubuntu-latest
 
+variables:
+  AWS_REGION: 'us-east-1'
+  ECR_REGISTRY: '<account-id>.dkr.ecr.us-east-1.amazonaws.com'
+  ECR_REPOSITORY: 'dependencytrack/backend/dependencytrack-apiserver'
+  AWS_SERVICE_CONNECTION: '<aws-service-connection>'
+  DT_URL: '<dependency-track-url>'
+  # API_KEY: set as a secret variable in pipeline settings
+
 steps:
   - task: NodeTool@0
     displayName: Set up Node.js
     inputs:
       versionSpec: '20.x'
+
+  - task: AWSShellScript@1
+    displayName: Build and push Docker image to ECR
+    inputs:
+      awsCredentials: $(AWS_SERVICE_CONNECTION)
+      regionName: $(AWS_REGION)
+      scriptType: inline
+      inlineScript: |
+        aws ecr get-login-password --region $(AWS_REGION) | \
+          docker login --username AWS --password-stdin $(ECR_REGISTRY)
+        docker build -t $(ECR_REGISTRY)/$(ECR_REPOSITORY):$(Build.BuildId) .
+        docker push $(ECR_REGISTRY)/$(ECR_REPOSITORY):$(Build.BuildId)
 
   - script: npm install
     displayName: Install dependencies
