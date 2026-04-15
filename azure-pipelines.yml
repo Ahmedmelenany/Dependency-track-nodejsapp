@@ -67,6 +67,37 @@ stages:
               testResultsFiles: '$(Build.ArtifactStagingDirectory)/semgrep-results.xml'
               testRunTitle: 'Semgrep SAST Scan'
 
+  - stage: CodeQuality
+    displayName: Code Quality Gate
+    dependsOn: []
+    jobs:
+      - job: ESLint
+        displayName: ESLint Analysis
+        steps:
+          - task: NodeTool@0
+            displayName: Set up Node.js
+            inputs:
+              versionSpec: '20.x'
+
+          - script: npm install
+            displayName: Install dependencies
+            workingDirectory: src
+
+          - script: |
+              npx eslint . \
+                --format ./node_modules/eslint-formatter-junit \
+                --output-file $(Build.ArtifactStagingDirectory)/eslint-results.xml
+            displayName: Run ESLint quality gate
+            workingDirectory: src
+
+          - task: PublishTestResults@2
+            displayName: Publish ESLint results
+            condition: always()
+            inputs:
+              testResultsFormat: JUnit
+              testResultsFiles: '$(Build.ArtifactStagingDirectory)/eslint-results.xml'
+              testRunTitle: 'ESLint Code Quality Gate'
+
   - stage: Scan
     displayName: Security Scan
     dependsOn: Build
@@ -134,6 +165,7 @@ stages:
     dependsOn:
       - Scan
       - SAST
+      - CodeQuality
     jobs:
       - job: Push
         steps:
