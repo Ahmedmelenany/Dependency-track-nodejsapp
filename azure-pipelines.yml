@@ -38,6 +38,35 @@ stages:
                   docker login --username AWS --password-stdin $(ECR_REGISTRY)
                 docker build -t $(ECR_REGISTRY)/$(ECR_REPOSITORY):$(Build.BuildId) .
 
+  - stage: SAST
+    displayName: SAST - Semgrep
+    dependsOn: []
+    jobs:
+      - job: Semgrep
+        steps:
+          - script: |
+              docker run --rm \
+                -v $(Build.SourcesDirectory):/src \
+                -v $(Build.ArtifactStagingDirectory):/output \
+                semgrep/semgrep \
+                semgrep scan \
+                --config p/javascript \
+                --config p/nodejs \
+                --config p/owasp-top-ten \
+                --severity ERROR \
+                --junit-xml \
+                --output /output/semgrep-results.xml \
+                /src/src
+            displayName: Run Semgrep SAST scan
+
+          - task: PublishTestResults@2
+            displayName: Publish Semgrep SAST results
+            condition: always()
+            inputs:
+              testResultsFormat: JUnit
+              testResultsFiles: '$(Build.ArtifactStagingDirectory)/semgrep-results.xml'
+              testRunTitle: 'Semgrep SAST Scan'
+
   - stage: Scan
     displayName: Security Scan
     dependsOn: Build
@@ -102,7 +131,9 @@ stages:
 
   - stage: Push
     displayName: Push to ECR
-    dependsOn: Scan
+    dependsOn:
+      - Scan
+      - SAST
     jobs:
       - job: Push
         steps:
