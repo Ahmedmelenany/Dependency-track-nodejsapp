@@ -98,6 +98,34 @@ stages:
               testResultsFiles: '$(Build.ArtifactStagingDirectory)/eslint-results.xml'
               testRunTitle: 'ESLint Code Quality Gate'
 
+  - stage: SecretScan
+    displayName: Secret Scanning - Gitleaks
+    dependsOn: []
+    jobs:
+      - job: Gitleaks
+        displayName: Gitleaks Secret Scan
+        steps:
+          - script: |
+              docker run --rm \
+                -v $(Build.SourcesDirectory):/path \
+                -v $(Build.ArtifactStagingDirectory):/output \
+                ghcr.io/gitleaks/gitleaks:latest \
+                detect \
+                --source /path \
+                --no-git \
+                --report-format junit \
+                --report-path /output/gitleaks-results.xml \
+                --exit-code 1
+            displayName: Run Gitleaks secret scan
+
+          - task: PublishTestResults@2
+            displayName: Publish Gitleaks results
+            condition: always()
+            inputs:
+              testResultsFormat: JUnit
+              testResultsFiles: '$(Build.ArtifactStagingDirectory)/gitleaks-results.xml'
+              testRunTitle: 'Gitleaks Secret Scan'
+
   - stage: Scan
     displayName: Security Scan
     dependsOn: Build
@@ -166,6 +194,7 @@ stages:
       - Scan
       - SAST
       - CodeQuality
+      - SecretScan
     jobs:
       - job: Push
         steps:
