@@ -128,6 +128,29 @@ terraform apply
 
 Two pipeline files are included to automate SBOM generation and upload on every push to `main`: `.github/workflows/sbom.yml` for GitHub Actions and `azure-pipelines.yml` for Azure DevOps. Both require `DT_URL` and `API_KEY` to be set as secrets/variables in your pipeline settings.
 
+### Secret Scanning - Gitleaks
+
+The Azure DevOps pipeline includes a `SecretScan` stage powered by [Gitleaks](https://github.com/gitleaks/gitleaks), an open-source tool that detects hardcoded secrets, API keys, tokens, and credentials committed to source code.
+
+The stage runs in parallel with the Docker build (it only needs the source tree) and blocks the image from being pushed to ECR if any secrets are found.
+
+```yaml
+docker run --rm \
+  -v $(Build.SourcesDirectory):/path \
+  ghcr.io/gitleaks/gitleaks:latest \
+  detect --source /path --no-git \
+  --report-format junit --report-path gitleaks-results.xml \
+  --exit-code 1
+```
+
+| Flag | Purpose |
+|---|---|
+| `--no-git` | Scans file contents directly - works with any clone depth |
+| `--exit-code 1` | Fails the pipeline immediately on any finding |
+| `--report-format junit` | Publishes results to the Azure DevOps Tests tab |
+
+Findings appear in the pipeline's **Tests** tab with the full file path, line number, matched rule, and the type of secret detected (e.g. AWS key, generic API token, private key).
+
 ## Example SBOM
 
 A pre-generated `bom.json` is included in the repo so you can upload it directly to Dependency-Track without running cdxgen yourself.
