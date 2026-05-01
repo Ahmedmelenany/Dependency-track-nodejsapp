@@ -181,6 +181,17 @@ stages:
             workingDirectory: src
 
           - script: |
+              docker run --rm \
+                -v $(Build.SourcesDirectory):/work \
+                cyclonedx/cyclonedx-cli:latest \
+                validate \
+                --input-file /work/bom.json \
+                --input-format json \
+                --input-version v1_4 \
+                --fail-on-errors
+            displayName: Validate SBOM against CycloneDX schema
+
+          - script: |
               set -e
 
               PROJECT_NAME="node-app"
