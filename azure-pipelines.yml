@@ -14,6 +14,7 @@ variables:
   DT_URL: '<dependency-track-url>'
   ECS_CLUSTER: 'dependencytrack-cluster'
   ECS_SERVICE: 'dependencytrack-service'
+  RISK_SCORE_THRESHOLD: '10'
   # API_KEY: set as a secret variable in pipeline settings
 
 stages:
@@ -180,13 +181,89 @@ stages:
             workingDirectory: src
 
           - script: |
-              curl -X POST "$(DT_URL)/api/v1/bom" \
-                -H "X-Api-Key: $(API_KEY)" \
+              set -e
+
+              PROJECT_NAME="node-app"
+              PROJECT_VERSION="1.0.0"
+              TIMEOUT_SECONDS=300
+
+              # 1. Upload SBOM and capture token
+              echo "Uploading SBOM to Dependency-Track..."
+              UPLOAD_RESPONSE=$(curl -sS -X POST "${DT_URL}/api/v1/bom" \
+                -H "X-Api-Key: ${API_KEY}" \
                 -F "autoCreate=false" \
-                -F "projectName=node-app" \
-                -F "projectVersion=1.0.0" \
-                -F "bom=@bom.json"
-            displayName: Upload SBOM to Dependency-Track
+                -F "projectName=${PROJECT_NAME}" \
+                -F "projectVersion=${PROJECT_VERSION}" \
+                -F "bom=@bom.json")
+
+              TOKEN=$(echo "$UPLOAD_RESPONSE" | jq -r '.token')
+              if [ -z "$TOKEN" ] || [ "$TOKEN" = "null" ]; then
+                echo "##vso[task.logissue type=error]Failed to upload SBOM. Response: $UPLOAD_RESPONSE"
+                exit 1
+              fi
+              echo "SBOM uploaded. Token: $TOKEN"
+
+              # 2. Poll until BOM processing completes
+              echo "Waiting for SBOM processing..."
+              elapsed=0
+              PROCESSING="true"
+              while [ $elapsed -lt $TIMEOUT_SECONDS ]; do
+                PROCESSING=$(curl -sS "${DT_URL}/api/v1/bom/token/${TOKEN}" \
+                  -H "X-Api-Key: ${API_KEY}" | jq -r '.processing')
+                if [ "$PROCESSING" = "false" ]; then
+                  echo "BOM processing complete after ${elapsed}s."
+                  break
+                fi
+                sleep 5
+                elapsed=$((elapsed + 5))
+              done
+
+              if [ "$PROCESSING" != "false" ]; then
+                echo "##vso[task.logissue type=error]Timeout waiting for BOM processing"
+                exit 1
+              fi
+
+              # 3. Look up project UUID
+              PROJECT_UUID=$(curl -sS "${DT_URL}/api/v1/project/lookup?name=${PROJECT_NAME}&version=${PROJECT_VERSION}" \
+                -H "X-Api-Key: ${API_KEY}" | jq -r '.uuid')
+              if [ -z "$PROJECT_UUID" ] || [ "$PROJECT_UUID" = "null" ]; then
+                echo "##vso[task.logissue type=error]Failed to look up project UUID"
+                exit 1
+              fi
+
+              # 4. Trigger metrics refresh and wait for it to settle
+              curl -sS -X POST "${DT_URL}/api/v1/metrics/project/${PROJECT_UUID}/refresh" \
+                -H "X-Api-Key: ${API_KEY}" > /dev/null
+              sleep 10
+
+              # 5. Read current metrics
+              METRICS=$(curl -sS "${DT_URL}/api/v1/metrics/project/${PROJECT_UUID}/current" \
+                -H "X-Api-Key: ${API_KEY}")
+              RISK_SCORE=$(echo "$METRICS" | jq -r '.inheritedRiskScore // 0')
+              CRITICAL=$(echo "$METRICS" | jq -r '.critical // 0')
+              HIGH=$(echo "$METRICS" | jq -r '.high // 0')
+              MEDIUM=$(echo "$METRICS" | jq -r '.medium // 0')
+              LOW=$(echo "$METRICS" | jq -r '.low // 0')
+
+              echo ""
+              echo "===== Dependency-Track Risk Report ====="
+              echo "Project:              ${PROJECT_NAME} @ ${PROJECT_VERSION}"
+              echo "Inherited Risk Score: ${RISK_SCORE} (threshold: ${RISK_SCORE_THRESHOLD})"
+              echo "Vulnerabilities:      ${CRITICAL} critical | ${HIGH} high | ${MEDIUM} medium | ${LOW} low"
+              echo "========================================"
+
+              # 6. Enforce risk gate
+              if awk "BEGIN {exit !($RISK_SCORE > $RISK_SCORE_THRESHOLD)}"; then
+                echo "##vso[task.logissue type=error]Risk score ${RISK_SCORE} exceeds threshold ${RISK_SCORE_THRESHOLD}"
+                exit 1
+              fi
+
+              echo "Risk score within acceptable threshold. Gate passed."
+            displayName: Upload SBOM and enforce DT risk gate
+            env:
+              DT_URL: $(DT_URL)
+              API_KEY: $(API_KEY)
+              RISK_SCORE_THRESHOLD: $(RISK_SCORE_THRESHOLD)
 
   - stage: Push
     displayName: Push to ECR
