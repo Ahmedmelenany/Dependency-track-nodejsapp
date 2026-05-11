@@ -6,7 +6,7 @@ metadata:
   labels:
     app: nodejs-app
 spec:
-  replicas: 2
+  replicas: 1
   strategy:
     type: RollingUpdate
     rollingUpdate:
@@ -26,8 +26,8 @@ spec:
           type: RuntimeDefault
       containers:
         - name: nodejs-app
-          image: <ACCOUNT_ID>.dkr.ecr.us-east-1.amazonaws.com/dependencytrack/backend/dependencytrack-apiserver:latest
-          imagePullPolicy: Always
+          image: nodejs-app:local
+          imagePullPolicy: IfNotPresent
           ports:
             - name: http
               containerPort: 3000
